@@ -1,0 +1,174 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;color:#eef2f8;font-size:14px;
+  font-family:'Sarabun','Noto Sans Thai','Leelawadee UI',-apple-system,'Segoe UI',sans-serif}
+.w{background:#151a26;border:1px solid #252c3d;border-radius:14px;padding:14px}
+h4{font-size:14px;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+h4 i{width:7px;height:7px;border-radius:50%;background:#ff3b5c;font-style:normal}
+h4 i.on{background:#00e08a;box-shadow:0 0 7px #00e08a}
+p.s{font-size:11px;color:#7d8798;margin-bottom:11px;line-height:1.5}
+.r{display:flex;gap:7px;margin-bottom:8px}
+input{flex:1;min-width:0;height:44px;background:#0f141f;border:1px solid #252c3d;
+  border-radius:10px;color:#fff;padding:0 12px;font-size:15px;font-family:inherit}
+input:focus{outline:0;border-color:#ff6a00}
+button{height:44px;border:0;border-radius:10px;font-weight:800;font-size:14px;
+  font-family:inherit;padding:0 18px;
+  background:linear-gradient(135deg,#ff6a00,#ff2d55);color:#fff}
+button:disabled{opacity:.45}
+.me{background:linear-gradient(135deg,rgba(255,106,0,.18),rgba(255,45,85,.07));
+  border:1px solid rgba(255,140,40,.45);border-radius:11px;padding:11px;margin-bottom:9px}
+.me b{font-size:27px;font-weight:900;color:#ffb800;line-height:1}
+.me .t{font-size:11px;color:#ffb07a;font-weight:700;letter-spacing:1px}
+.me .e{font-size:12px;color:#aab3c4;margin-top:5px}
+.hit{background:rgba(0,224,138,.14);border-color:rgba(0,224,138,.5)}
+.hit b{color:#00e08a}
+.lst{display:flex;flex-direction:column;gap:5px;margin-top:9px}
+.q{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);
+  border-left:3px solid #47506a;border-radius:8px;padding:6px 9px;font-size:13px}
+.q.p{border-left-color:#ffb800;background:rgba(255,184,0,.09)}
+.q.mine{border-left-color:#00e08a;background:rgba(0,224,138,.12);font-weight:700}
+.q em{font-style:normal;width:19px;height:19px;border-radius:5px;background:#212838;
+  display:grid;place-items:center;font-size:10px;font-weight:800;flex:0 0 19px}
+.q span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q u{text-decoration:none;font-size:10px;color:#7d8798}
+.n{font-size:11px;color:#7d8798;text-align:center;padding:9px}
+.err{background:rgba(255,59,92,.14);border:1px solid rgba(255,59,92,.4);
+  border-radius:9px;padding:9px;font-size:12px;margin-bottom:8px;color:#ffaebb}
+.cnt{display:flex;gap:6px;font-size:10px;color:#7d8798;margin-top:9px}
+.cnt span{background:rgba(255,255,255,.05);padding:3px 8px;border-radius:6px}
+</style></head><body>
+<div class="w" id="w">
+  <h4><i id="dot"></i> คิวเล่น Free Fire กับสตรีมเมอร์</h4>
+  <p class="s" id="sub">ใส่ชื่อในเกมกับ UID เพื่อต่อคิวฟรี — ถ้าโดเนทด้วยจะได้คิวเร็วกว่า</p>
+  <div id="err"></div>
+  <div id="me"></div>
+  <div class="r">
+    <input id="n" maxlength="20" placeholder="ชื่อในเกม" autocomplete="off">
+    <input id="u" maxlength="14" inputmode="numeric" placeholder="UID" autocomplete="off">
+  </div>
+  <div class="r"><button id="b" style="flex:1" onclick="join()">ต่อคิวฟรี</button></div>
+  <div class="lst" id="l"></div>
+  <div class="cnt" id="c"></div>
+</div>
+<script>
+'use strict';
+var P=new URLSearchParams(location.search);
+var CH=P.get('ch')||'';
+var HOST=P.get('host')||location.host;
+var PARENT=P.get('parent')||'*';
+var EP=(location.protocol==='https:'?'wss://':'ws://')+HOST+'/ws?ch='+encodeURIComponent(CH);
+var ws=null,back=900,MY=null,D=null,warned=false;
+
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+try{MY=JSON.parse(localStorage.getItem('rzq_me')||'null')}catch(e){}
+if(MY){$('n').value=MY.name||'';$('u').value=MY.uid||''}
+
+/* แจ้งความสูงกลับไปหาหน้าโดเนท เพื่อให้ iframe ยืดตามเนื้อหา */
+function tellHeight(){
+  var h=document.getElementById('w').getBoundingClientRect().height+4;
+  parent.postMessage({type:'rzq:height',h:Math.ceil(h)},PARENT);
+}
+new ResizeObserver(tellHeight).observe($('w'));
+
+/* ส่งชื่อ/UID กลับไปให้ฟอร์มโดเนทแนบไปกับรายการ → อนุมัติแล้วได้คิวโดเนท */
+function pushProfile(){
+  var n=$('n').value.trim(),u=$('u').value.replace(/\D/g,'');
+  parent.postMessage({type:'rzq:profile',name:n,uid:u,ok:!!(n.length>=2&&u.length>=6)},PARENT);
+}
+$('n').oninput=pushProfile;
+$('u').oninput=function(){this.value=this.value.replace(/\D/g,'');pushProfile()};
+
+function join(){
+  var n=$('n').value.trim(),u=$('u').value.replace(/\D/g,'');
+  if(n.length<2) return showErr('ใส่ชื่อในเกมก่อนนะครับ');
+  if(u.length<6) return showErr('UID ต้องเป็นตัวเลขอย่างน้อย 6 หลัก');
+  if(!ws||ws.readyState!==1) return showErr('ยังเชื่อมต่อไม่ได้ ลองใหม่อีกที');
+  MY={name:n,uid:u};
+  try{localStorage.setItem('rzq_me',JSON.stringify(MY))}catch(e){}
+  $('b').disabled=true;
+  ws.send(JSON.stringify({t:'q_join',d:{name:n,uid:u}}));
+}
+function showErr(m){$('err').innerHTML='<div class="err">'+esc(m)+'</div>';
+  setTimeout(function(){$('err').innerHTML='';tellHeight()},4200);tellHeight()}
+
+function paint(d){
+  D=d;var c=d.cfg||{};
+  $('sub').textContent=c.open===false?'ตอนนี้ปิดรับคิวชั่วคราว'
+    :('โหมด '+(c.modeName||'')+' · เรียกครั้งละ '+(c.slots||3)+' คน · โดเนทตั้งแต่ '+
+      (c.minPaid||50)+'฿ ขึ้นไปได้คิวเร็วกว่า');
+  $('b').disabled=(c.open===false);
+
+  var w=(d.list||[]).filter(function(e){return e.status==='waiting'});
+  var tail=MY?('…'+MY.uid.slice(-3)):null;
+  var mineRound=MY&&(d.round||[]).some(function(e){return e.uidTail===tail&&e.name===MY.name});
+  var mine=null,pos=0;
+  w.forEach(function(e,i){if(MY&&e.uidTail===tail&&e.name===MY.name){mine=e;pos=i+1}});
+
+  if(mineRound){
+    $('me').innerHTML='<div class="me hit"><div class="t">ถึงคิวคุณแล้ว</div>'+
+      '<b>เข้าห้องได้เลย</b><div class="e">ดูรหัสห้องบนหน้าจอสตรีม</div></div>';
+    notify('ถึงคิวคุณแล้ว! เข้าห้องได้เลย');
+  }else if(mine){
+    var ahead=pos-1, rounds=Math.ceil(pos/(c.slots||3));
+    $('me').innerHTML='<div class="me"><div class="t">คิวของคุณ</div>'+
+      '<b>ลำดับ '+pos+'</b><div class="e">'+
+      (ahead?('เหลืออีก '+ahead+' คนก่อนถึงคุณ · ประมาณ '+rounds+' รอบ'):'คุณเป็นคิวถัดไป')+
+      (mine.tier==='paid'?' · คิวโดเนท ฿'+mine.amount:' · คิวฟรี')+'</div></div>';
+    if(pos<=(c.slots||3)&&!warned){warned=true;notify('ใกล้ถึงคิวคุณแล้ว เตรียมตัวได้เลย')}
+    if(pos>(c.slots||3))warned=false;
+    $('b').textContent='อยู่ในคิวแล้ว';$('b').disabled=true;
+  }else{
+    $('me').innerHTML='';$('b').textContent='ต่อคิวฟรี';
+    $('b').disabled=(c.open===false);
+  }
+
+  $('l').innerHTML=w.slice(0,6).map(function(e,i){
+    var m=(mine&&e.id===mine.id)?' mine':'';
+    return '<div class="q '+(e.tier==='paid'?'p':'')+m+'"><em>'+(i+1)+'</em>'+
+      '<span>'+esc(e.name)+(m?' ← คุณ':'')+'</span>'+
+      '<u>'+(e.tier==='paid'?'฿'+e.amount:'ฟรี')+'</u></div>'}).join('')
+    || '<div class="n">ยังไม่มีใครต่อคิว — คุณเป็นคนแรกได้เลย</div>';
+  $('c').innerHTML='<span>คิวฟรี '+d.counts.free+'</span>'+
+    '<span>คิวโดเนท '+d.counts.paid+'</span><span>เล่นจบ '+d.counts.done+'</span>';
+  tellHeight();
+}
+
+function notify(msg){
+  try{
+    if(!('Notification'in window))return;
+    if(Notification.permission==='granted')new Notification('คิว Free Fire',{body:msg});
+    else if(Notification.permission!=='denied')Notification.requestPermission();
+  }catch(e){}
+}
+
+function conn(){
+  try{ws=new WebSocket(EP)}catch(e){return setTimeout(conn,3000)}
+  ws.onopen=function(){back=900;$('dot').className='on';ws.send(JSON.stringify({t:'q_sync'}))};
+  ws.onmessage=function(ev){
+    var m;try{m=JSON.parse(ev.data)}catch(e){return}
+    if(m.t==='q_state')paint(m.d);
+    if(m.t==='q_join_res'){
+      $('b').disabled=false;
+      if(m.d.ok){notify('ต่อคิวสำเร็จแล้ว');if(ws.readyState===1)ws.send(JSON.stringify({t:'q_sync'}))}
+      else showErr(m.d.err||'ต่อคิวไม่สำเร็จ');
+    }
+    if(m.t==='q_called'&&MY){
+      var n=(m.d.names||[]);
+      if(n.indexOf(MY.name)>=0)notify('ถึงคิวคุณแล้ว! เข้าห้องได้เลย');
+    }
+  };
+  ws.onclose=function(){$('dot').className='';back=Math.min(back*1.7,20000);setTimeout(conn,back)};
+  ws.onerror=function(){try{ws.close()}catch(e){}};
+}
+if(!CH){document.body.innerHTML='<div class="w"><div class="n">ลิงก์คิวไม่ถูกต้อง</div></div>'}
+else{conn();setInterval(function(){
+  if(ws&&ws.readyState===1&&document.visibilityState==='visible')
+    ws.send(JSON.stringify({t:'q_sync'}))},25000)}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&(!ws||ws.readyState!==1))conn()});
+setTimeout(tellHeight,120);
+</script></body></html>
