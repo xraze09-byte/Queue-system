@@ -11,6 +11,14 @@ const QUEUE_CH = process.env.QUEUE_CH || DONATE_CH;
 
 let connectedAt = 0;
 const REPLAY_WINDOW_MS = 1500;  // relay ส่ง backlog ทันทีหลัง connect: ช่วงนี้ = replay เท่านั้น ห้ามสร้างคิว
+// ล้างความลับออกจากข้อความ error ก่อนเก็บ (สถานะนี้เปิดอ่านได้สาธารณะที่ /bridge และ /health)
+// ครอบคลุม tok=<ค่า> ใน URL, ค่าโทเคนที่ตั้งไว้เอง และ URL ทั้งเส้นที่มี query string
+function scrub(msg) {
+  let t = String(msg == null ? '' : msg);
+  t = t.replace(/([?&]tok=)[^&\s"'\]\)]*/gi, '$1<hidden>');
+  if (LISTEN_TOKEN) t = t.split(LISTEN_TOKEN).join('<hidden>');
+  return t.slice(0, 200);
+}
 const st = { alive: false, since: 0, lastMsg: 0, lastErr: '', reconnects: 0, joined: 0, skipped: 0, pending: 0 };
 const pending = new Map();      // donation id -> { rec, at }   (จำไว้รอจับคู่ตอน approved)
 const seenResolved = new Map(); // กัน approved ซ้ำ (relay replay)
@@ -62,13 +70,13 @@ function connect() {
   if (stopped) return;
   if (!DONATE_CH) { st.lastErr = 'DONATE_CH ไม่ได้ตั้งค่า'; return; }
   const url = DONATE_WS + '?ch=' + encodeURIComponent(DONATE_CH) + (LISTEN_TOKEN ? '&tok=' + encodeURIComponent(LISTEN_TOKEN) : '');
-  try { ws = new WebSocket(url, { handshakeTimeout: 10000 }); } catch (e) { st.lastErr = String(e.message); return retry(); }
+  try { ws = new WebSocket(url, { handshakeTimeout: 10000 }); } catch (e) { st.lastErr = scrub(e.message); return retry(); }
 
   ws.on('open', () => { st.alive = true; st.since = Date.now(); connectedAt = Date.now(); st.lastErr = ''; back = 1000; console.log('[bridge] เชื่อมแล้ว'); });
   ws.on('message', raw => { let m; try { m = JSON.parse(raw.toString()); } catch { return; } try { handle(m); } catch (e) { console.error('[bridge] handle', e); } });
   ws.on('unexpected-response', (_q, res) => { st.lastErr = 'ปฏิเสธ HTTP ' + res.statusCode; console.warn('[bridge]', st.lastErr); });
   ws.on('close', (code) => { st.alive = false; if (code === 4001) st.lastErr = 'token ไม่ถูกต้อง (4001)'; retry(); });
-  ws.on('error', e => { st.alive = false; st.lastErr = String(e && e.message); });
+  ws.on('error', e => { st.alive = false; st.lastErr = scrub(e && e.message); });
 }
 function retry() {
   if (stopped) return;
@@ -90,4 +98,4 @@ function start(cb) {
 function stop() { stopped = true; clearTimeout(timer); clearInterval(hb); try { ws && ws.terminate(); } catch (_) {} }
 function status() { gc(); return { alive: st.alive, since: st.since, lastMsg: st.lastMsg, lastErr: st.lastErr, reconnects: st.reconnects, joined: st.joined, skipped: st.skipped, pending: st.pending, ch: QUEUE_CH ? '…' + QUEUE_CH.slice(-4) : '' }; }
 
-module.exports = { start, stop, status, _handle: handle };
+module.exports = { start, stop, status, _handle: handle, _scrub: scrub };
