@@ -62,7 +62,11 @@ const wss = new WebSocketServer({
     const ch = q.searchParams.get('ch') || '';
     if (!CH_RE.test(ch)) return cb(false, 400, 'bad ch');
     const og = info.origin || info.req.headers.origin || '';
-    if (ALLOWED.length && og && og !== 'null' && !ALLOWED.includes(og) && !og.startsWith('https://rzclan-queue')) return cb(false, 403, 'origin');
+    // origin ของหน้าที่เราเสิร์ฟเอง (overlay/admin ที่เปิดจากโดเมนนี้ เช่น ใน OBS) ต้องผ่านเสมอ
+    // เดิม hardcode ชื่อ 'https://rzclan-queue*' ซึ่งผิดเมื่อ deploy ชื่ออื่น (เช่น queue-system-r517) => OBS ต่อไม่ได้ 403
+    const host = String(info.req.headers.host || '');
+    const selfOgs = host ? ['https://' + host, 'http://' + host] : [];
+    if (ALLOWED.length && og && og !== 'null' && !ALLOWED.includes(og) && !selfOgs.includes(og)) return cb(false, 403, 'origin');
     if (!rooms.has(ch) && rooms.size >= 200) return cb(false, 503, 'full');
     if ((rooms.get(ch)?.size || 0) >= 60)     return cb(false, 503, 'room full');
     cb(true);

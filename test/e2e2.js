@@ -28,9 +28,19 @@ const R=(don,id,amt)=>don.send(JSON.stringify({t:'resolved',d:{id,status:'approv
  adm.send(JSON.stringify({t:'q_admin',d:{act:'done'}}));await sleep(200);
  const ord=st(adm).list.filter(e=>e.status==='waiting').slice(0,5).map(e=>e.tier[0]).join('').toUpperCase();
  ok(ord.startsWith('PPFPF')||/^PP?F/.test(ord),'สลอต PPFPF: ฟรีได้ที่ในคิว ('+ord+')');
- // 6) DONATE_CH ไม่ตั้ง -> ต้องไม่ crash
+ // 6) ALLOWED_ORIGINS ตั้ง + เปิด overlay จากโดเมนของเราเอง (ใน OBS) ต้องต่อได้ ไม่โดน 403
+ const q3=run('server.js',[],{PORT:'9203',QUEUE_TOKEN:QT,DONATE_WS:'ws://127.0.0.1:9101/ws',DONATE_CH:CH,ALLOWED_ORIGINS:'https://rz-clan-v4.vercel.app'});await sleep(1000);
+ const selfOv=await ws(9203,`ch=${CH}`); // no-origin (บาง browser source ไม่ส่ง origin) ต้องผ่าน
+ const withSelf=await new Promise(r=>{const w=new WebSocket(`ws://127.0.0.1:9203/ws?ch=${CH}`,{headers:{Origin:'http://127.0.0.1:9203'}});w.on('open',()=>r({ok:true,w}));w.on('unexpected-response',(_,res)=>r({ok:false,code:res.statusCode}));w.on('error',()=>r({ok:false,code:0}))});
+ ok(withSelf.ok,'ALLOWED_ORIGINS ตั้ง + origin ตรง host ตัวเอง (หน้า overlay ใน OBS) ต่อได้ (ตัวจริงคือ 403 ก่อนแก้)');
+ const withAllow=await new Promise(r=>{const w=new WebSocket(`ws://127.0.0.1:9203/ws?ch=${CH}`,{headers:{Origin:'https://rz-clan-v4.vercel.app'}});w.on('open',()=>r({ok:true}));w.on('unexpected-response',(_,res)=>r({ok:false,code:res.statusCode}));w.on('error',()=>r({ok:false,code:0}))});
+ ok(withAllow.ok,'origin ที่อยู่ใน ALLOWED_ORIGINS ต่อได้');
+ const withEvil=await new Promise(r=>{const w=new WebSocket(`ws://127.0.0.1:9203/ws?ch=${CH}`,{headers:{Origin:'https://evil.example'}});w.on('open',()=>r({ok:true}));w.on('unexpected-response',(_,res)=>r({ok:false,code:res.statusCode}));w.on('error',()=>r({ok:false,code:0}))});
+ ok(!withEvil.ok&&withEvil.code===403,'origin แปลกปลอมยังโดน 403 เหมือนเดิม');
+ selfOv.terminate&&selfOv.terminate();
+ // 7) DONATE_CH ไม่ตั้ง -> ต้องไม่ crash
  const q2=run('server.js',[],{PORT:'9202',QUEUE_TOKEN:QT,DONATE_WS:'ws://127.0.0.1:9101/ws',DONATE_CH:''});await sleep(1000);
  ok(!/Error|uncaught/.test(q2.L)&&/พร้อมที่พอร์ต/.test(q2.L),'ไม่ตั้ง DONATE_CH => ไม่ crash (คิวฟรียังใช้ได้)');
  ok(!/uncaught|unhandled/.test(q.L),'ไม่มี uncaught/unhandled ตลอดชุดทดสอบ');
- console.log(`\nRESULT ${pass} pass / ${fail} fail`);[relay,q,q2].forEach(p=>p.kill());process.exit(fail?1:0);
+ console.log(`\nRESULT ${pass} pass / ${fail} fail`);[relay,q,q2,q3].forEach(p=>p.kill());process.exit(fail?1:0);
 })();
