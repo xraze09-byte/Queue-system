@@ -1,0 +1,78 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>คิว · แอดมิน</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0c0f18;color:#eef2f8;font:15px 'Sarabun','Noto Sans Thai',system-ui,sans-serif;padding:12px 12px 90px}
+h1{font-size:16px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+h1 i{width:9px;height:9px;border-radius:50%;background:#ff3b5c}h1 i.on{background:#00e08a;box-shadow:0 0 8px #00e08a}
+.card{background:#151a26;border:1px solid #252c3d;border-radius:14px;padding:12px;margin-bottom:10px}
+.big{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px}
+button{border:0;border-radius:12px;font:800 15px inherit;color:#fff;min-height:54px;background:#2a3245;padding:0 12px}
+button:active{transform:scale(.97)}
+.go{background:linear-gradient(135deg,#ff6a00,#ff2d55);font-size:19px;min-height:64px}
+.ok{background:#0a8f5c}.warn{background:#a36a00}.bad{background:#a3243b}
+.row{display:flex;gap:8px;align-items:center;padding:9px 10px;margin-bottom:6px;background:#0f141f;border-radius:10px;border-left:4px solid #47506a}
+.row.p{border-left-color:#ffb800}.row.c{border-left-color:#00e08a;background:rgba(0,224,138,.1)}
+.row .n{flex:1;min-width:0}.row .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .n small{color:#7d8798;font-family:monospace;font-size:11px}
+.row button{min-height:38px;font-size:12px;padding:0 10px;border-radius:9px}
+.pos{width:24px;height:24px;border-radius:6px;background:#252c3d;display:grid;place-items:center;font-size:11px;font-weight:800;flex:0 0 24px}
+label{display:block;font-size:11px;color:#7d8798;margin:8px 0 3px}
+input,select{width:100%;height:42px;background:#0f141f;border:1px solid #252c3d;border-radius:10px;color:#fff;padding:0 10px;font:inherit}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st{font-size:12px;color:#7d8798;text-align:center;padding:6px}
+#toast{position:fixed;left:12px;right:12px;bottom:14px;background:#000c;border:1px solid #333;border-radius:12px;padding:12px;text-align:center;display:none;z-index:9}
+.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{flex:1;min-height:40px;font-size:13px}.tabs .on{background:#ff6a00}
+</style></head><body>
+<h1><i id="dot"></i> คิว Free Fire · แอดมิน <span id="cnt" class="st" style="margin-left:auto"></span></h1>
+<div id="gate" class="card" style="display:none"><label>QUEUE_TOKEN</label><input id="tk" type="password" autocomplete="off"><button class="go" style="width:100%;margin-top:10px" onclick="saveTok()">เข้าสู่ระบบ</button></div>
+<div id="app" style="display:none">
+ <div class="big"><button class="go" onclick="A({act:'call'})">▶ เรียกรอบถัดไป</button><button class="ok" onclick="A({act:'done'})">จบรอบ</button></div>
+ <div class="tabs"><button id="t1" class="on" onclick="tab(1)">คิว</button><button id="t2" onclick="tab(2)">ตั้งค่า</button></div>
+ <div id="p1"><div class="card"><div id="round"></div></div><div class="card"><div id="list"></div></div></div>
+ <div id="p2" style="display:none"><div class="card">
+  <div class="g2"><div><label>รูปแบบสลอต (P=โดเนท F=ฟรี)</label><input id="c_pattern"></div>
+   <div><label>โหมด</label><select id="c_mode"><option value="br">Battle Royale</option><option value="cs">Clash Squad</option><option value="lw">Lone Wolf</option></select></div></div>
+  <div class="g2"><div><label>เรียกครั้งละ (คน)</label><input id="c_slots" type="number" inputmode="numeric"></div>
+   <div><label>โดเนทขั้นต่ำ (฿)</label><input id="c_minPaid" type="number" inputmode="numeric"></div></div>
+  <div class="g2"><div><label>คูลดาวน์ฟรี (นาที)</label><input id="c_cooldownMin" type="number" inputmode="numeric"></div>
+   <div><label>ไม่เข้าห้อง (วิ)</label><input id="c_noShowSec" type="number" inputmode="numeric"></div></div>
+  <label>รหัสห้อง</label><input id="c_roomCode" maxlength="24">
+  <div class="g2" style="margin-top:10px"><button id="b_show" onclick="tgl('showCode')">โชว์รหัสห้อง: -</button><button id="b_open" onclick="tgl('open')">รับคิว: -</button></div>
+  <button class="ok" style="width:100%;margin-top:10px" onclick="saveCfg()">บันทึกตั้งค่า</button>
+ </div>
+ <div class="card"><div class="g2"><button class="warn" onclick="A({act:'cancel'})">คืนคิวรอบนี้</button><button class="warn" onclick="A({act:'clearCd'})">ล้างคูลดาวน์</button></div>
+  <button class="bad" style="width:100%;margin-top:8px" onclick="if(confirm('ล้างคิวทั้งหมด?'))A({act:'clear'})">ล้างคิวทั้งหมด</button></div></div>
+</div><div id="toast"></div>
+<script>
+'use strict';
+var P=new URLSearchParams(location.search),CH=P.get('ch')||'',TK=P.get('tok')||localStorage.getItem('rzq_tok')||'';
+var EP=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws',ws=null,back=900,D=null,cfgLoaded=false;
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function toast(m){var t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(function(){t.style.display='none'},2600)}
+function saveTok(){TK=$('tk').value.trim();localStorage.setItem('rzq_tok',TK);location.href=location.pathname+'?ch='+encodeURIComponent(CH)}
+function tab(n){$('p1').style.display=n==1?'':'none';$('p2').style.display=n==2?'':'none';$('t1').className=n==1?'on':'';$('t2').className=n==2?'on':''}
+function A(d){if(!ws||ws.readyState!==1)return toast('ยังไม่เชื่อมต่อ');ws.send(JSON.stringify({t:'q_admin',d:d}))}
+function tgl(k){var f=D&&D.cfg.full||{};var o={};o[k]=!f[k];A({act:'cfg',cfg:o})}
+function saveCfg(){var c={pattern:$('c_pattern').value,mode:$('c_mode').value,roomCode:$('c_roomCode').value};
+  ['slots','minPaid','cooldownMin','noShowSec'].forEach(function(k){var v=$('c_'+k).value;if(v!=='')c[k]=+v});A({act:'cfg',cfg:c})}
+function row(e,i,cls){var mm=e.tier==='paid'?' ฿'+e.amount:' ฟรี';
+ return '<div class="row '+cls+'"><div class="pos">'+(i+1)+'</div><div class="n"><b>'+esc(e.name)+'<span style="color:#ffb800">'+mm+'</span></b><small>'+esc(e.uid||e.uidTail)+(e.note?' · '+esc(e.note):'')+'</small></div>'+
+ (cls==='c'?'':'<button class="warn" data-a="bump" data-id="'+esc(e.id)+'">ดันขึ้น</button>')+'<button class="bad" data-a="remove" data-id="'+esc(e.id)+'">ลบ</button></div>'}
+function paint(d){D=d;var w=d.list.filter(function(e){return e.status==='waiting'});
+ $('round').innerHTML='<label>กำลังเล่น</label>'+(d.round.length?d.round.map(function(e,i){return row(e,i,'c')}).join(''):'<div class="st">ยังไม่มีรอบ</div>');
+ $('list').innerHTML='<label>รอคิว ('+w.length+')</label>'+(w.length?w.map(function(e,i){return row(e,i,e.tier==='paid'?'p':'')}).join(''):'<div class="st">ไม่มีคิว</div>');
+ $('cnt').textContent='ฟรี '+d.counts.free+' · โดเนท '+d.counts.paid+' · จบ '+d.counts.done;
+ var f=d.cfg.full;if(f){$('b_show').textContent='โชว์รหัสห้อง: '+(f.showCode?'เปิด':'ปิด');$('b_open').textContent='รับคิว: '+(f.open?'เปิด':'ปิด');
+  if(!cfgLoaded){cfgLoaded=true;['pattern','roomCode','slots','minPaid','cooldownMin','noShowSec'].forEach(function(k){$('c_'+k).value=f[k]==null?'':f[k]});$('c_mode').value=f.mode}}}
+document.addEventListener('click',function(ev){var b=ev.target.closest('button[data-a]');if(b)A({act:b.dataset.a,id:b.dataset.id})});
+function conn(){ws=new WebSocket(EP+'?ch='+encodeURIComponent(CH)+'&tok='+encodeURIComponent(TK));
+ ws.onopen=function(){back=900;$('dot').className='on';ws.send(JSON.stringify({t:'q_sync'}))};
+ ws.onmessage=function(ev){var m;try{m=JSON.parse(ev.data)}catch(e){return}
+  if(m.t==='q_state'){if(!m.d.cfg.full){$('gate').style.display='';$('app').style.display='none'}else{$('gate').style.display='none';$('app').style.display='';paint(m.d)}}
+  if(m.t==='q_admin_res'){toast(m.d.ok?'สำเร็จ':(m.d.err||'ไม่สำเร็จ'))}};
+ ws.onclose=function(){$('dot').className='';back=Math.min(back*1.7,15000);setTimeout(conn,back)};ws.onerror=function(){try{ws.close()}catch(e){}}}
+if(!CH){document.body.innerHTML='<div class="card">ต้องมี ?ch=</div>'}else{conn();setInterval(function(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'q_sync'}))},25000)}
+</script></body></html>
