@@ -1,0 +1,23 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Noto Sans Thai',sans-serif;overflow:hidden;color:#fff}
+#b{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;background:rgba(10,12,20,.88);border-top:2px solid #ff6a00}
+.lb{font-weight:800;color:#ff6a00;font-size:14px;white-space:nowrap}
+.i{display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,.07);border-radius:9px;font-size:14px;white-space:nowrap;border-left:3px solid #47506a}
+.i.p{border-left-color:#ffb800;background:rgba(255,184,0,.12)}.i.now{border-left-color:#00e08a;background:rgba(0,224,138,.15)}
+.i em{font-style:normal;font-weight:800;opacity:.6;font-size:12px}.i u{text-decoration:none;font-size:11px;color:#ffb800}
+#l{display:flex;gap:8px;overflow:hidden;flex:1}.code{margin-left:auto;font:800 20px monospace;letter-spacing:3px;color:#00e08a}
+</style></head><body><div id="b"><span class="lb">FREE FIRE</span><div id="l"></div><span class="code" id="c"></span></div><script>
+var P=new URLSearchParams(location.search),CH=P.get('ch')||'',ws,back=1000;
+var EP=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?ch='+encodeURIComponent(CH);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function it(e,i,n){return '<div class="i '+(n?'now':e.tier==='paid'?'p':'')+'"><em>'+(n?'▶':i+1)+'</em>'+esc(e.name)+(e.tier==='paid'?' <u>฿'+e.amount+'</u>':'')+'</div>'}
+function render(d){var w=d.list.filter(function(e){return e.status==='waiting'}).slice(0,6);
+ document.getElementById('l').innerHTML=d.round.map(function(e){return it(e,0,1)}).join('')+w.map(function(e,i){return it(e,i)}).join('')||'<div class="i">ยังไม่มีคิว</div>';
+ document.getElementById('c').textContent=(d.cfg.showCode&&d.cfg.roomCode)?d.cfg.roomCode:''}
+function conn(){try{ws=new WebSocket(EP)}catch(e){return setTimeout(conn,3000)}
+ ws.onopen=function(){back=1000;ws.send(JSON.stringify({t:'q_sync'}))};
+ ws.onmessage=function(ev){var m;try{m=JSON.parse(ev.data)}catch(e){return}if(m.t==='q_state')render(m.d)};
+ ws.onclose=function(){back=Math.min(back*1.7,20000);setTimeout(conn,back)};ws.onerror=function(){try{ws.close()}catch(e){}}}
+if(CH){conn();setInterval(function(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'q_sync'}))},30000)}
+</script></body></html>
