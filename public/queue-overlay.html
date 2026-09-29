@@ -1,0 +1,101 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Noto Sans Thai',sans-serif;
+     overflow:hidden;color:#fff;user-select:none}
+#wrap{width:400px;padding:14px}
+.hd{display:flex;align-items:center;gap:8px;padding:10px 14px;
+    background:linear-gradient(135deg,#ff6a00,#ff2d55);
+    border-radius:14px 14px 0 0;font-weight:800;letter-spacing:.5px;
+    box-shadow:0 4px 20px rgba(255,80,0,.35)}
+.hd .md{margin-left:auto;font-size:11px;opacity:.9;font-weight:600}
+.bd{background:rgba(10,12,20,.88);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.08);border-top:0;
+    border-radius:0 0 14px 14px;padding:10px}
+.now{background:linear-gradient(135deg,rgba(255,106,0,.22),rgba(255,45,85,.12));
+     border:1px solid rgba(255,140,40,.5);border-radius:10px;
+     padding:8px 10px;margin-bottom:8px}
+.now .lb{font-size:10px;color:#ffb07a;font-weight:700;letter-spacing:1px}
+.row{display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:5px;
+     background:rgba(255,255,255,.05);border-radius:9px;font-size:13px;
+     border-left:3px solid #3a4050;animation:in .35s ease both}
+.row.paid{border-left-color:#ffb800;background:rgba(255,184,0,.1)}
+.row.playing{border-left-color:#00e08a;background:rgba(0,224,138,.12)}
+@keyframes in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.pos{width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:#2a3040;
+     display:grid;place-items:center;font-size:11px;font-weight:800}
+.row.paid .pos{background:#ffb800;color:#1a1200}
+.nm{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uid{font-size:10px;opacity:.45;font-family:monospace}
+.tag{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:700}
+.tag.p{background:#ffb800;color:#1a1200}
+.tag.f{background:#2a3040;color:#8a94a8}
+.ft{display:flex;gap:6px;margin-top:8px;font-size:11px;opacity:.75}
+.ft span{background:rgba(255,255,255,.06);padding:3px 8px;border-radius:6px}
+.code{margin-top:8px;text-align:center;font-family:monospace;font-size:20px;
+      font-weight:800;letter-spacing:3px;color:#00e08a;
+      background:rgba(0,224,138,.1);border:1px dashed rgba(0,224,138,.4);
+      border-radius:9px;padding:7px}
+.off{text-align:center;padding:16px;opacity:.5;font-size:12px}
+</style></head><body>
+<div id="wrap">
+  <div class="hd">🔥 คิวเล่น FREE FIRE <span class="md" id="md"></span></div>
+  <div class="bd">
+    <div id="now"></div><div id="list"></div>
+    <div id="code"></div>
+    <div class="ft"><span id="cf"></span><span id="cp"></span><span id="cd"></span></div>
+  </div>
+</div>
+<script>
+var P=new URLSearchParams(location.search),CH=P.get('ch')||'';
+var EP=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?ch='+encodeURIComponent(CH);
+var ws=null, back=1000;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,
+  function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+function render(d){
+  document.getElementById('md').textContent=d.cfg.modeName+' · '+d.cfg.slots+' คน/รอบ';
+
+  document.getElementById('now').innerHTML = d.round.length
+    ? '<div class="now"><div class="lb">กำลังเล่นอยู่</div>'+d.round.map(function(e){
+        return '<div class="row playing"><div class="pos">▶</div>'+
+               '<div class="nm">'+esc(e.name)+' <span class="uid">'+esc(e.uidTail)+'</span></div>'+
+               '<div class="tag '+(e.tier==='paid'?'p':'f')+'">'+
+               (e.tier==='paid'?'฿'+e.amount:'ฟรี')+'</div></div>'}).join('')+'</div>'
+    : '';
+
+  var q=d.list.filter(function(e){return e.status==='waiting'}).slice(0,8);
+  document.getElementById('list').innerHTML = !d.cfg.open && !q.length
+    ? '<div class="off">ปิดรับคิวชั่วคราว</div>'
+    : (q.length ? q.map(function(e,i){
+        return '<div class="row '+(e.tier==='paid'?'paid':'')+'">'+
+               '<div class="pos">'+(i+1)+'</div>'+
+               '<div class="nm">'+esc(e.name)+' <span class="uid">'+esc(e.uidTail)+'</span></div>'+
+               '<div class="tag '+(e.tier==='paid'?'p':'f')+'">'+
+               (e.tier==='paid'?'฿'+e.amount:'ฟรี')+'</div></div>'}).join('')
+      : '<div class="off">ยังไม่มีคิว — พิมพ์ในหน้าโดเนทได้เลย</div>');
+
+  document.getElementById('code').innerHTML =
+    (d.cfg.showCode && d.cfg.roomCode) ? '<div class="code">'+esc(d.cfg.roomCode)+'</div>' : '';
+  document.getElementById('cf').textContent='ฟรี '+d.counts.free;
+  document.getElementById('cp').textContent='โดเนท '+d.counts.paid;
+  document.getElementById('cd').textContent='เล่นจบ '+d.counts.done;
+}
+
+function conn(){
+  try{ws=new WebSocket(EP)}catch(e){return setTimeout(conn,3000)}
+  ws.onopen=function(){back=1000;ws.send(JSON.stringify({t:'q_sync'}))};
+  ws.onmessage=function(ev){
+    var m;try{m=JSON.parse(ev.data)}catch(e){return}
+    if(m.t==='q_state') render(m.d);
+    // q_called → ให้ระบบ alert/TTS เดิมประกาศชื่อคนที่ถูกเรียก
+    if(m.t==='q_called' && window.parent && window.parent!==window)
+      window.parent.postMessage(m,'*');
+  };
+  ws.onclose=function(){back=Math.min(back*1.7,20000);setTimeout(conn,back)};
+  ws.onerror=function(){try{ws.close()}catch(e){}};
+}
+conn();
+setInterval(function(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'q_sync'}))},30000);
+</script></body></html>
